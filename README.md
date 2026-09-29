@@ -34,7 +34,7 @@ manually verified and reported through the target's approved channel.
 Requires Go 1.27 or newer:
 
 ```powershell
-git clone https://github.com/cyeezy08/Fenrir.git
+git clone https://github.com/leviathan-offsec/FenrirLVX.git
 Set-Location .\Fenrir
 go run . --help
 go run . version
@@ -43,7 +43,7 @@ go run . version
 ### One-line install
 
 ```powershell
-go install github.com/cyeezy08/fenrir@latest
+go install github.com/leviathan-offsec/FenrirLVX@latest
 fenrir --help
 fenrir version
 ```
