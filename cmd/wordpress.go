@@ -5,9 +5,9 @@ import (
 	"os"
 	"strings"
 
-	"github.com/cyeezy08/fenrir/pkg/banner"
-	"github.com/cyeezy08/fenrir/pkg/engine"
-	"github.com/cyeezy08/fenrir/pkg/shodan"
+	"github.com/leviathan-offsec/FenrirLVX/pkg/banner"
+	"github.com/leviathan-offsec/FenrirLVX/pkg/engine"
+	"github.com/leviathan-offsec/FenrirLVX/pkg/shodan"
 	"github.com/spf13/cobra"
 )
 

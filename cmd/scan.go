@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/cyeezy08/fenrir/pkg/banner"
-	"github.com/cyeezy08/fenrir/pkg/engine"
+	"github.com/leviathan-offsec/FenrirLVX/pkg/banner"
+	"github.com/leviathan-offsec/FenrirLVX/pkg/engine"
 	"github.com/spf13/cobra"
 )
 

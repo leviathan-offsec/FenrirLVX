@@ -1,6 +1,6 @@
 package main
 
-import "github.com/cyeezy08/fenrir/cmd"
+import "github.com/leviathan-offsec/FenrirLVX/cmd"
 
 func main() {
 	cmd.Execute()

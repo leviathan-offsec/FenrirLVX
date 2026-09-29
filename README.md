@@ -1,212 +1,128 @@
-# Fenrir v0.1.0
+# FenrirLVX
 
 <p align="center">
   <img src="/TUI.gif" alt="Fenrir TUI demo" width="900">
 </p>
 
-**WordPress reconnaissance and auto-triage from the Leviathan stack.**
+**High-speed Go CLI for WordPress attack surface mapping, plugin fingerprinting, and offline CVE correlation.**
 
-Fenrir is a focused Go CLI for authorized security testing. It fingerprints
-WordPress targets, enumerates plugins and themes, correlates detected versions
-with a local vulnerability database, and presents concise triage results.
+FenrirLVX is a focused, low-footprint Go security utility built for authorized offensive security operations, bug bounty triage, and perimeter auditing. It fingerprints WordPress targets, enumerates plugins and themes, correlates detected versions against a local vulnerability database (`vuln_db.json`), and outputs deterministic triage findings without external API dependencies.
 
-> Use Fenrir only on systems you own or are explicitly authorized to assess.
-> Mass scanning must follow the target owner's rules and the relevant
-> bug-bounty program policy.
+> [!IMPORTANT]
+> Use FenrirLVX only against assets you own or have explicit written authorization to assess.
 
-## What it does
+---
 
-- Single-target WordPress fingerprinting without Shodan
-- Plugin and theme enumeration
-- Local CVE and Wordfence-style vulnerability correlation
-- Confidence scoring using version evidence and changelog context
-- Optional Shodan host discovery for authorized research
-- Concurrent mass triage with honeypot filtering
-- Windows, Linux, and macOS builds for amd64, 386, and arm64
+## Capabilities
 
-Fenrir is a triage tool, not proof that a target is secure. Findings should be
-manually verified and reported through the target's approved channel.
+- **Direct Fingerprinting:** Single-target WordPress and component detection with zero external API dependencies.
+- **Component Enumeration:** Plugin and theme version discovery via static asset inspection and header telemetry.
+- **Offline Vulnerability Correlation:** Local mapping against CVE and Wordfence vulnerability data (`vuln_db.json`).
+- **Confidence Scoring:** Version signal validation factoring in changelogs, cache signatures, and response headers.
+- **Shodan Query Support:** Optional passive host discovery for scoped enterprise ranges.
+- **Concurrent Mass Triage:** Multi-target worker pool with honeypot and canary edge filtering.
+- **Cross-Platform:** Native single-binary builds for Linux, macOS, and Windows (`amd64`, `arm64`).
 
-## Install
+---
 
-### Run from source
+## Installation
 
-Requires Go 1.27 or newer:
+### Via `go install` (Recommended)
 
-```powershell
+Requires Go 1.22+:
+
+```bash
+go install -v github.com/leviathan-offsec/FenrirLVX@latest
+```
+
+Ensure `$GOPATH/bin` is in your `PATH`:
+
+```bash
+export PATH=$PATH:$(go env GOPATH)/bin
+FenrirLVX --help
+```
+
+### From Source
+
+```bash
 git clone https://github.com/leviathan-offsec/FenrirLVX.git
-Set-Location .\Fenrir
-go run . --help
-go run . version
+cd FenrirLVX
+go build -o fenrir .
+./fenrir --help
 ```
 
-### One-line install
+---
 
-```powershell
-go install github.com/leviathan-offsec/FenrirLVX@latest
-fenrir --help
-fenrir version
+## Usage
+
+### Single-Target Scan
+
+Scan an authorized target URL directly without third-party services:
+
+```bash
+fenrir scan -t https://staging.example.com
 ```
 
-On Windows, the Go bin directory must be on `PATH`. If `fenrir` is not
-recognized, run:
+The scan outputs detected CMS technologies, active plugins, detected themes, and correlations against local vulnerability definitions with confidence scoring.
 
-```powershell
-& "$(go env GOPATH)\bin\fenrir.exe" --help
+### Target Recon with Shodan Enrichment
+
+```bash
+export SHODAN_API_KEY="your-api-key"
+fenrir wordpress -t staging.example.com -k $SHODAN_API_KEY
 ```
 
-## Quick start
+*The Shodan key is optional; direct scanning functions entirely offline.*
 
-### Scan one authorized target
+### Mass Triage via Shodan Query
 
-```powershell
-go run . scan -t https://staging.example.com
+```bash
+fenrir mass -k $SHODAN_API_KEY -q 'http.component:"WordPress" org:"TargetOrg"' -p 1 -d 5
 ```
 
-The scan reports whether WordPress is detected, the discovered plugins and
-themes, matching local vulnerability records, response metadata, and a
-confidence score when findings exist.
+### Key CLI Flags
 
-### WordPress workflow with optional Shodan context
-
-```powershell
-$env:SHODAN_API_KEY = "replace-with-a-rotated-key"
-go run . wordpress -t staging.example.com -k $env:SHODAN_API_KEY
-```
-
-The Shodan key is optional for the `wordpress` command. Never commit a key or
-paste one into a public issue, screenshot, shell history, or README.
-
-### Mass triage through Shodan
-
-```powershell
-$env:SHODAN_API_KEY = "replace-with-a-rotated-key"
-go run . mass -k $env:SHODAN_API_KEY -p 1 -d 5
-```
-
-Useful flags:
-
-| Flag | Command | Purpose |
-| --- | --- | --- |
+| Flag | Supported Commands | Description |
+| :--- | :--- | :--- |
 | `-t` | `scan`, `wordpress` | Target URL or domain |
-| `-k` | `wordpress`, `mass` | Shodan API key |
-| `-q` | `mass` | Shodan query |
-| `-p` | `mass` | Number of result pages |
-| `-d` | `mass` | Delay between Shodan pages |
-| `-P` | `mass` | Exact version matching |
+| `-k` | `wordpress`, `mass` | Shodan API key (optional) |
+| `-q` | `mass` | Shodan search query filter |
+| `-p` | `mass` | Total result pages to fetch (default: 1) |
+| `-d` | `mass` | Polling delay in seconds between queries (default: 5) |
+| `-P` | `mass` | Enable strict/precision version matching |
 
-## Reading the console
+---
 
-Fenrir uses a small operator-console vocabulary:
+## Triage Console Taxonomy
 
-```text
-[+] Clean       no local vulnerability match was produced
-[!]             lower-confidence or medium-severity signal
-[!!]            high-severity signal
-[!!!]           high-confidence signal
-[SKIP]          honeypot or canary-like response was not triaged
-```
-
-`Clean` means that the current local database did not match the detected
-versions. It does **not** mean the target is safe.
-
-### Example
+FenrirLVX utilizes deterministic severity signaling in its terminal output:
 
 ```text
-[*] Querying Shodan: http.component:"WordPress" http.status:200
-[*] Pages: 1 (~100 targets), delay: 5s
-[+] Scanning 100 targets...
-
-[!!] staging.example.com (203.0.113.10)  confidence=75/100  changelog=0
-    plugins  elementor 4.2.1, contact-form-7 6.0.5
-    server   cloudflare [200]
-    findings
-      !!  9.8  CVE-2026-32475  Elementor Pro arbitrary file upload
-      ... +2 more (elementor-pro)
-
-[+] Clean: docs.example.com (203.0.113.11)
+[+] Clean       No matching vulnerability signature in local database
+[!]             Low or medium-severity signal / unverified version match
+[!!]            High-severity vulnerability signature detected
+[!!!]           Critical CVSS / exploit-confirmed vulnerability signature
+[SKIP]          Honeypot, WAF canary, or synthetic response filtered
 ```
 
-The default command is intentionally a normal terminal workflow rather than a
-full-screen TUI, so it works in PowerShell, CI logs, SSH sessions, and bug
-bounty notes without special terminal support.
+> [!NOTE]
+> `Clean` indicates no local signatures matched the detected component versions. Manual verification of non-standard endpoints is always advised.
 
-## Build releases
+---
 
-The included PowerShell script creates a tidy `dist\` directory with versioned
-archives and checksums:
-
-```powershell
-.\tools\build.ps1 -Version v1.0.0
-```
-
-By default it builds:
-
-- Windows: `amd64`, `386`, `arm64`
-- Linux: `amd64`, `386`, `arm64`
-- macOS: `amd64`, `arm64`
-
-To build only selected targets:
-
-```powershell
-.\tools\build.ps1 -Version v1.0.0 -Targets windows/amd64,linux/amd64
-```
-
-Each archive contains:
+## Project Structure
 
 ```text
-fenrir/
-  fenrir(.exe)
-  vuln_db.json
-  wordfence_production.json
-  README.md
+cmd/          Cobra command wiring and CLI interface
+pkg/banner/   Console branding and output telemetry
+pkg/engine/   Fingerprinting, asset enumeration, and CVE correlation
+pkg/shodan/   Shodan host discovery client
+tools/        Cross-compilation and release automation scripts
+vuln_db.json  Local vulnerability definitions and signatures
 ```
 
-## Project layout
-
-```text
-cmd/          Cobra commands and CLI wiring
-pkg/banner/   Leviathan/Fenrir console identity
-pkg/engine/   fingerprinting, enumeration, triage, reporting
-pkg/shodan/   optional Shodan discovery and host lookups
-tools/        reproducible release helpers
-vuln_db.json  local vulnerability correlation data
-```
-
-## Development
-
-```powershell
-go test ./...
-go vet ./...
-go run . scan -t https://staging.example.com
-```
-
-Keep generated release files under `dist\`; they are ignored by Git.
+---
 
 ## License
 
-This project is licensed under the MIT License.
-
-```text
-MIT License
-@cyeezy08 - Leviathan X
-Copyright (c) 2025 Fenrir contributors
-
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
-
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
-
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.
-```
+MIT License. Developed by `@cyeezy08` for [Leviathan OffSec](https://leviathan.ac).

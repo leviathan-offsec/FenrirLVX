@@ -55,7 +55,7 @@ foreach ($target in $Targets) {
     $env:GOARCH = $goarch
     $env:CGO_ENABLED = "0"
 
-    $ldflags = "-s -w -X github.com/cyeezy08/fenrir/cmd.Version=$Version -X github.com/cyeezy08/fenrir/cmd.Commit=$commit"
+    $ldflags = "-s -w -X github.com/leviathan-offsec/FenrirLVX/cmd.Version=$Version -X github.com/leviathan-offsec/FenrirLVX/cmd.Commit=$commit"
     go build -trimpath -ldflags $ldflags -o (Join-Path $stage ("fenrir" + $extension)) (Join-Path $root "main.go")
 
     Copy-Item (Join-Path $root "vuln_db.json") $stage

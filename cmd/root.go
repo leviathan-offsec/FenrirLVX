@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/cyeezy08/fenrir/pkg/banner"
+	"github.com/leviathan-offsec/FenrirLVX/pkg/banner"
 	"github.com/spf13/cobra"
 )
 

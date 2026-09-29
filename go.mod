@@ -1,4 +1,4 @@
-module github.com/cyeezy08/fenrir
+module github.com/leviathan-offsec/FenrirLVX
 
 go 1.27.0
 
