@@ -61,6 +61,7 @@ var wordpressCmd = &cobra.Command{
 
 		db, _ := engine.LoadVulnDB("vuln_db.json")
 		vulns := engine.CheckVulns(plugins, db, true)
+		cov := engine.SummarizeCoverage(plugins, db, true)
 
 		f := &engine.Finding{
 			Target:   clean,
@@ -69,6 +70,7 @@ var wordpressCmd = &cobra.Command{
 			Plugins:  plugins,
 			Themes:   themes,
 			Vulns:    vulns,
+			Coverage: cov,
 		}
 		if resp != nil {
 			f.StatusCode = resp.StatusCode

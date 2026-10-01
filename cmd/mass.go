@@ -112,6 +112,7 @@ var massCmd = &cobra.Command{
 				}
 
 				vulns := engine.CheckVulns(plugins, db, massPrecision)
+				cov := engine.SummarizeCoverage(plugins, db, massPrecision)
 
 				f := &engine.Finding{
 					Target:       t.IP,
@@ -120,6 +121,7 @@ var massCmd = &cobra.Command{
 					Plugins:      plugins,
 					Themes:       themes,
 					Vulns:        vulns,
+					Coverage:     cov,
 					FetchedAt:    time.Now(),
 					ScanDuration: elapsed,
 				}

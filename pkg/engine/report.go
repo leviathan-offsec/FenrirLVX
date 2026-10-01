@@ -8,12 +8,12 @@ import (
 )
 
 const (
-	ansiReset = "\033[0m"
-	ansiCyan  = "\033[36m"
-	ansiGreen = "\033[32m"
-	ansiRed   = "\033[31m"
+	ansiReset  = "\033[0m"
+	ansiCyan   = "\033[36m"
+	ansiGreen  = "\033[32m"
+	ansiRed    = "\033[31m"
 	ansiYellow = "\033[33m"
-	ansiWhite = "\033[37m"
+	ansiWhite  = "\033[37m"
 )
 
 type Finding struct {
@@ -26,6 +26,7 @@ type Finding struct {
 	Plugins      map[string]string
 	Themes       []string
 	Vulns        map[string][]VulnEntry
+	Coverage     Coverage
 	Honeypot     bool
 	HoneypotWhy  string
 	Emails       []string
@@ -74,6 +75,15 @@ func (f *Finding) Display(confidence int, changelogHits int) string {
 	}
 	if f.VulnCount() == 0 {
 		fmt.Fprintf(&sb, "%s[+]%s %sClean%s: %s\n", ansiGreen, ansiReset, ansiGreen, ansiReset, header)
+		if f.Coverage.Detected > 0 {
+			fmt.Fprintf(&sb, "    %sdatabase coverage%s  %d/%d plugins matched",
+				ansiCyan, ansiReset, f.Coverage.Matched, f.Coverage.Detected)
+			if len(f.Coverage.Unmatched) > 0 {
+				fmt.Fprintf(&sb, "%s  %d with no advisory data%s",
+					ansiReset, len(f.Coverage.Unmatched), ansiCyan)
+			}
+			fmt.Fprintln(&sb)
+		}
 		return sb.String()
 	}
 	marker := "~"

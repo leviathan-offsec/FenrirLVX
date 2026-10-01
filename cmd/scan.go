@@ -39,6 +39,7 @@ var scanCmd = &cobra.Command{
 		}
 
 		vulns := engine.CheckVulns(plugins, db, true)
+		cov := engine.SummarizeCoverage(plugins, db, true)
 
 		f := &engine.Finding{
 			Target:   scanTarget,
@@ -47,6 +48,7 @@ var scanCmd = &cobra.Command{
 			Plugins:  plugins,
 			Themes:   themes,
 			Vulns:    vulns,
+			Coverage: cov,
 		}
 		if resp != nil {
 			f.StatusCode = resp.StatusCode

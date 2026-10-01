@@ -78,9 +78,12 @@ func looksLikeVersion(v string) bool {
 			return false
 		}
 	}
-	first, err := strconv.Atoi(parts[0])
-	if err != nil || first > 30 {
+	if _, err := strconv.Atoi(parts[0]); err != nil {
 		return false
 	}
+	// WordPress plugins use year-based versioning (2023.10.1, 2024.1), so a
+	// major component above 30 is not on its own a reason to reject. The
+	// earlier cap silently dropped those plugins from correlation, which is
+	// worse than a loose parse: a missed plugin looks like a clean one.
 	return true
 }
