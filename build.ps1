@@ -15,7 +15,10 @@ param(
 
 $ErrorActionPreference = "Stop"
 
-$root = Split-Path -Parent $PSScriptRoot
+# $PSScriptRoot is the directory holding this script, which is already the
+# repository root. Taking its parent pointed one level too high, so every
+# path below (main.go, vuln_db.json) resolved outside the repo.
+$root = $PSScriptRoot
 $dist = Join-Path $root "dist"
 $staging = Join-Path $dist ".staging"
 
@@ -32,6 +35,13 @@ try {
     }
 } catch {
     $commit = "unknown"
+}
+
+# The correlation database is loaded by relative path at runtime, so a release
+# without it is a binary that silently reports nothing. Fail here instead.
+$db = Join-Path $root "vuln_db.json"
+if (-not (Test-Path $db)) {
+    throw "vuln_db.json not found. Regenerate it first: go run ./tools/convertor.go"
 }
 
 foreach ($target in $Targets) {
@@ -59,7 +69,6 @@ foreach ($target in $Targets) {
     go build -trimpath -ldflags $ldflags -o (Join-Path $stage ("fenrir" + $extension)) (Join-Path $root "main.go")
 
     Copy-Item (Join-Path $root "vuln_db.json") $stage
-    Copy-Item (Join-Path $root "wordfence_production.json") $stage
     Copy-Item (Join-Path $root "README.md") $stage
 
     $archive = Join-Path $dist ($name + ".zip")
