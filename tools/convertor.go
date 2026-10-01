@@ -68,6 +68,7 @@ func main() {
 	decoder := json.NewDecoder(f)
 	t, err := decoder.Token()
 	if err != nil {
+		fmt.Println("[-] Cannot read top-level token:", err)
 		os.Exit(1)
 	}
 	if delim, ok := t.(json.Delim); !ok || delim != '{' {
@@ -77,17 +78,31 @@ func main() {
 
 	db := make(VulnDB)
 	records := 0
+	// Records that failed to decode are counted, not skipped in silence. A
+	// record that vanishes here becomes a plugin with no advisory data at scan
+	// time, which reads exactly like a clean plugin. This tool exists to stop
+	// that from being invisible, so it does not do it to itself.
+	skipped := 0
+	noCVE := 0
+	firstErr := error(nil)
 
 	for decoder.More() {
 		_, _ = decoder.Token()
 
 		var rec WFRecord
 		if err := decoder.Decode(&rec); err != nil {
+			skipped++
+			if firstErr == nil {
+				firstErr = err
+			}
 			continue
 		}
 		records++
 
 		cve := extractCVE(rec)
+		if strings.HasPrefix(cve, "WF-") {
+			noCVE++
+		}
 
 		for _, sw := range rec.Software {
 			if sw.Slug == "" {
@@ -128,9 +143,45 @@ func main() {
 
 	fmt.Printf("[+] Parsed %d records -> %d plugins\n", records, len(db))
 
-	out, _ := os.Create("vuln_db.json")
-	defer out.Close()
+	// Coverage disclosure, same shape the scanner prints at run time.
+	if skipped > 0 {
+		fmt.Printf("[!] %d records failed to decode and are NOT in the database\n", skipped)
+		if firstErr != nil {
+			fmt.Printf("    first error: %v\n", firstErr)
+		}
+	}
+	if noCVE > 0 {
+		fmt.Printf("[!] %d records carry no CVE id, keyed as WF-<id> instead\n", noCVE)
+	}
+
+	// os.Create returns a nil file on error. Ignoring that turns a permission
+	// problem into a nil dereference further down, or into an empty database
+	// that the scanner later reads as "no vulnerabilities here".
+	out, err := os.Create("vuln_db.json")
+	if err != nil {
+		fmt.Println("[-] Cannot create vuln_db.json:", err)
+		os.Exit(1)
+	}
+
 	enc := json.NewEncoder(out)
-	enc.Encode(db)
+	// An unchecked Encode on a full disk writes a truncated JSON file and then
+	// prints success. The next scan reads that file, matches nothing, and
+	// reports low coverage that looks like a real result.
+	if err := enc.Encode(db); err != nil {
+		out.Close()
+		fmt.Println("[-] Failed writing vuln_db.json:", err)
+		fmt.Println("[-] Refusing to leave a partial database in place.")
+		os.Remove("vuln_db.json")
+		os.Exit(1)
+	}
+
+	// Close is where a deferred write actually fails, so it is checked rather
+	// than deferred-and-ignored.
+	if err := out.Close(); err != nil {
+		fmt.Println("[-] Failed closing vuln_db.json:", err)
+		os.Remove("vuln_db.json")
+		os.Exit(1)
+	}
+
 	fmt.Println("[+] Wrote vuln_db.json")
 }

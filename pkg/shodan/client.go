@@ -41,7 +41,9 @@ func GetHost(apiKey, ip string) (*HostResponse, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer resp.Body.Close()
+	// Ignored explicitly rather than deferred bare. A read-side body close has
+	// no error worth reporting once the status has been judged.
+	defer func() { _ = resp.Body.Close() }()
 	if resp.StatusCode == 404 {
 		return nil, fmt.Errorf("no Shodan data for this IP")
 	}
@@ -72,16 +74,16 @@ func SearchHosts(apiKey, query string, pages int, delaySeconds int) ([]Target, e
 			break
 		}
 		if resp.StatusCode == 401 {
-			resp.Body.Close()
+			_ = resp.Body.Close()
 			return all, fmt.Errorf("invalid Shodan API key")
 		}
 		if resp.StatusCode != 200 {
-			resp.Body.Close()
+			_ = resp.Body.Close()
 			fmt.Printf("[-] Page %d returned %d\n", page, resp.StatusCode)
 			break
 		}
 		body, _ := io.ReadAll(resp.Body)
-		resp.Body.Close()
+		_ = resp.Body.Close()
 
 		var sr SearchResponse
 		if err := json.Unmarshal(body, &sr); err != nil {

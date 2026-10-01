@@ -79,7 +79,7 @@ func doRequest(rawURL string, hostHeader string) (*http.Response, []byte, error)
 	if err != nil {
 		return nil, nil, err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	body, _ := io.ReadAll(resp.Body)
 	return resp, body, nil
@@ -165,7 +165,7 @@ func CheckXMLRPC(rawURL string) bool {
 	if err != nil {
 		return false
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	return resp.StatusCode == 200 || resp.StatusCode == 405
 }
 

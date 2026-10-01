@@ -13,7 +13,12 @@ var rootCmd = &cobra.Command{
 	Short: "FENRIR — WordPress recon at scale",
 	Run: func(cmd *cobra.Command, args []string) {
 		banner.Print()
-		cmd.Help()
+		// Checked, not ignored. With no subcommand this IS the tool's output,
+		// so a write failure here means the user got a banner and nothing else.
+		if err := cmd.Help(); err != nil {
+			fmt.Fprintf(os.Stderr, "[-] cannot render help: %v\n", err)
+			os.Exit(1)
+		}
 	},
 }
 

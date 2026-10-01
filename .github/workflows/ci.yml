@@ -83,7 +83,10 @@ jobs:
       - uses: actions/setup-go@v5
         with:
           go-version: '1.27.x'
-      - uses: golangci/golangci-lint-action@v6
+      - uses: golangci/golangci-lint-action@v9
         with:
-          version: latest
+          # Pinned, not "latest". The v1 line is built with go1.24 and cannot
+          # read a go.mod declaring go 1.27, so it exits with "can't load
+          # config" before linting anything. v2.14.0 is built with go1.27.
+          version: v2.14.0
           args: --timeout 5m

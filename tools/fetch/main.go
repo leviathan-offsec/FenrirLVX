@@ -23,7 +23,6 @@ import (
 	"io"
 	"net/http"
 	"os"
-	"path/filepath"
 	"strings"
 	"time"
 )
@@ -56,9 +55,14 @@ func loadKey() string {
 				continue
 			}
 			if strings.HasPrefix(line, "WORDfENCE_API_KEY=") {
+				// Closed here rather than by defer: a defer inside this loop
+				// would hold every candidate file open until the function
+				// returned, and errcheck flags the ignored error.
+				f.Close()
 				return strings.Trim(strings.TrimPrefix(line, "WORDfENCE_API_KEY="), `"'`)
 			}
 		}
+		f.Close()
 	}
 	return ""
 }
@@ -86,7 +90,9 @@ func fetchPage(client *http.Client, key, token string) ([]json.RawMessage, strin
 	if err != nil {
 		return nil, "", err
 	}
-	defer resp.Body.Close()
+	// Closed explicitly on the error path, ignored on the happy path where
+	// there is nothing useful left to do with a read-side close error.
+	defer func() { _ = resp.Body.Close() }()
 	if resp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(io.LimitReader(resp.Body, 300))
 		return nil, "", fmt.Errorf("API returned %d: %s", resp.StatusCode, strings.TrimSpace(string(body)))
@@ -138,17 +144,28 @@ func main() {
 		fmt.Fprintf(os.Stderr, "[!] %v\n", err)
 		os.Exit(1)
 	}
-	defer outFile.Close()
 
 	w := bufio.NewWriterSize(outFile, 1<<20)
-	defer w.Flush()
 
-	if _, err := w.WriteString("{\n"); err != nil {
-		fmt.Fprintf(os.Stderr, "[!] %v\n", err)
+	// fail removes the partial file and exits. Every error path in the write
+	// loop goes through here, because a half-written feed file that survives
+	// looks exactly like a small but valid database, and the convertor would
+	// cheerfully convert it and report a low record count as if it were the
+	// whole feed.
+	fail := func(format string, a ...any) {
+		_ = w.Flush()
+		_ = outFile.Close()
+		_ = os.Remove(*out)
+		fmt.Fprintf(os.Stderr, format+"\n", a...)
 		os.Exit(1)
 	}
 
+	if _, err := w.WriteString("{\n"); err != nil {
+		fail("[!] %v", err)
+	}
+
 	total := 0
+	unreadable := 0
 	first := true
 	token := ""
 
@@ -159,8 +176,7 @@ func main() {
 
 		items, next, err := fetchPage(client, key, token)
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "[!] page %d: %v\n", page, err)
-			os.Exit(1)
+			fail("[!] page %d: %v", page, err)
 		}
 		if len(items) == 0 {
 			break
@@ -170,23 +186,29 @@ func main() {
 			var rec struct {
 				ID string `json:"id"`
 			}
-			_ = json.Unmarshal(item, &rec)
+			// An item that will not parse is counted, not passed through. The
+			// convertor would skip it silently later, so the shortfall has to
+			// be visible here where it can still be acted on.
+			if err := json.Unmarshal(item, &rec); err != nil {
+				unreadable++
+				continue
+			}
 
-			key := rec.ID
-			if key == "" {
-				key = fmt.Sprintf("row-%d-%d", page, i)
+			k := rec.ID
+			if k == "" {
+				k = fmt.Sprintf("row-%d-%d", page, i)
 			}
 			if !first {
 				if _, err := w.WriteString(",\n"); err != nil {
-					fmt.Fprintf(os.Stderr, "[!] %v\n", err)
-					os.Exit(1)
+					fail("[!] %v", err)
 				}
 			}
 			first = false
-			fmt.Fprintf(w, "  %q: ", key)
+			if _, err := fmt.Fprintf(w, "  %q: ", k); err != nil {
+				fail("[!] %v", err)
+			}
 			if _, err := w.Write(item); err != nil {
-				fmt.Fprintf(os.Stderr, "[!] %v\n", err)
-				os.Exit(1)
+				fail("[!] %v", err)
 			}
 			total++
 		}
@@ -201,8 +223,24 @@ func main() {
 	}
 
 	if _, err := w.WriteString("\n}\n"); err != nil {
-		fmt.Fprintf(os.Stderr, "[!] %v\n", err)
+		fail("[!] %v", err)
+	}
+
+	// Flush and Close are checked before anything is reported, and before the
+	// file is stat'd. Both of those used to be deferred, which meant a failure
+	// was invisible, and the stat below read a file whose buffer had not
+	// reached the disk yet, so the size it printed was wrong on every run.
+	if err := w.Flush(); err != nil {
+		fail("[!] flush failed, feed file is incomplete: %v", err)
+	}
+	if err := outFile.Close(); err != nil {
+		_ = os.Remove(*out)
+		fmt.Fprintf(os.Stderr, "[!] close failed, feed file is incomplete: %v\n", err)
 		os.Exit(1)
+	}
+
+	if unreadable > 0 {
+		fmt.Fprintf(os.Stderr, "[!] %d records were not valid JSON and were NOT written\n", unreadable)
 	}
 
 	size := "unknown"
@@ -212,5 +250,4 @@ func main() {
 	fmt.Fprintf(os.Stderr, "[+] wrote %d records to %s (%s)\n", total, *out, size)
 	fmt.Fprintln(os.Stderr, "[+] next: go run ./tools/convertor.go")
 	fmt.Fprintln(os.Stderr, "    then rebuild, and the release zip drops from ~17MB to ~5MB")
-	_ = filepath.Base(*out)
 }

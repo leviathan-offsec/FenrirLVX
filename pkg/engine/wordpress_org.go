@@ -37,7 +37,7 @@ func GetLatestWordPressOrgVersion(slug string) string {
 		wpOrgCacheMu.Unlock()
 		return ""
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != 200 {
 		wpOrgCacheMu.Lock()
@@ -67,8 +67,7 @@ func SanityCheckVersion(slug, detected string) bool {
 	}
 	d := parseSemver(detected)
 	l := parseSemver(latest)
-	if d[0] > l[0]+1 {
-		return false
-	}
-	return true
+	// A plugin more than one major version ahead of the newest release we know
+	// about is not a version we have data for, so it is not treated as current.
+	return d[0] <= l[0]+1
 }

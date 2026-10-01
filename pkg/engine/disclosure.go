@@ -88,7 +88,7 @@ func FetchSecurityTxt(baseURL string) []string {
 			continue
 		}
 		body, _ := io.ReadAll(resp.Body)
-		resp.Body.Close()
+		_ = resp.Body.Close()
 
 		for _, line := range strings.Split(string(body), "\n") {
 			line = strings.TrimSpace(line)

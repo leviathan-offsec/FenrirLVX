@@ -36,10 +36,10 @@ func EnrichWithChangelog(f *Finding, baseURL string) int {
 			if err == nil && resp != nil {
 				if resp.StatusCode == http.StatusOK {
 					hits++
-					resp.Body.Close()
+					_ = resp.Body.Close()
 					break
 				}
-				resp.Body.Close()
+				_ = resp.Body.Close()
 			}
 		}
 	}

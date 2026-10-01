@@ -29,7 +29,7 @@ func GetPluginVersionFromReadme(baseURL, slug string) string {
 	if err != nil || resp == nil {
 		return ""
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	if resp.StatusCode != 200 {
 		return ""
 	}
@@ -53,7 +53,7 @@ func Enumerate(url string, body []byte) (map[string]string, []string) {
 	apiURL := strings.TrimSuffix(url, "/") + "/wp-json/wp/v2/plugins"
 	resp, err := httpClient.Get(apiURL)
 	if err == nil && resp != nil && resp.StatusCode == 200 {
-		defer resp.Body.Close()
+		defer func() { _ = resp.Body.Close() }()
 		apiBody, _ := io.ReadAll(resp.Body)
 		var apiPlugins []WPPlugin
 		if err := json.Unmarshal(apiBody, &apiPlugins); err == nil {

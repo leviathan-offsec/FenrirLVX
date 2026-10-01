@@ -1,0 +1,51 @@
+# golangci-lint v2 configuration.
+#
+# Version 2 of the linter requires a newer Go toolchain to read a go.mod that
+# declares go 1.27, so CI pins v2 rather than the v1 the action used to default
+# to. That is not cosmetic: v1.64.8 is built with go1.24 and fails outright with
+# "the Go language version used to build golangci-lint is lower than the
+# targeted Go version".
+version: "2"
+
+run:
+  timeout: 5m
+
+linters:
+  default: standard
+  enable:
+    - errcheck
+    - govet
+    - ineffassign
+    - staticcheck
+    - unused
+
+  settings:
+    errcheck:
+      # These are excluded one at a time, with a reason, rather than by turning
+      # errcheck off. Each of them was a real bug first and is now either
+      # checked explicitly or provably not actionable.
+      exclude-functions:
+        # Read-side closes, and closes on a path that is already exiting with
+        # an error. The invariant this relies on: every WRITE-side Close in
+        # this repo is checked, because a failed Close is where a deferred
+        # buffered write actually fails. See tools/convertor.go and
+        # tools/fetch/main.go, where the output file is closed explicitly and
+        # a failure removes the partial file instead of leaving it behind.
+        - (*os.File).Close
+        # Removing a partial file we are already aborting on. If the remove
+        # fails there is nothing further to try, and the non-zero exit is the
+        # signal the pipeline reads.
+        - os.Remove
+
+  exclusions:
+    generated: lax
+    rules:
+      # Table tests assert on values and deliberately ignore errors from
+      # fixtures that cannot fail.
+      - path: _test\.go
+        linters:
+          - errcheck
+
+formatters:
+  enable:
+    - gofmt
