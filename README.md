@@ -1,5 +1,10 @@
 # FenrirLVX
 
+[![Platform](https://img.shields.io/badge/Web-leviathan.ac-00ffcc?style=for-the-badge&logo=firefox&logoColor=black)](https://leviathan.ac)
+[![Org](https://img.shields.io/badge/Org-leviathan--offsec-00ffcc?style=for-the-badge&logo=github&logoColor=black)](https://github.com/leviathan-offsec)
+[![Go](https://img.shields.io/badge/Go-1.22%2B-00ADD8?style=for-the-badge&logo=go&logoColor=white)](https://go.dev)
+[![License](https://img.shields.io/badge/License-MIT-gray?style=for-the-badge)](./LICENSE)
+
 <p align="center">
   <img src="/TUI.gif" alt="Fenrir TUI demo" width="900">
 </p>
@@ -10,6 +15,28 @@ FenrirLVX is a focused, low-footprint Go security utility built for authorized o
 
 > [!IMPORTANT]
 > Use FenrirLVX only against assets you own or have explicit written authorization to assess.
+
+---
+
+## Part of a pipeline, not an island
+
+`FenrirLVX` is one stage. The other three tools are built to hand off to it:
+
+| Tool | Stage | Does |
+| :--- | :--- | :--- |
+| **[surfacediff](https://github.com/leviathan-offsec/surfacediff)** | enumerate | Immutable perimeter snapshots, exits `1` on any delta |
+| **[HostageLVX](https://github.com/leviathan-offsec/HostageLVX)** | test claimability | Subdomain takeover detection, 28 CNAME patterns across 21 cloud services |
+| **[FenrirLVX](https://github.com/leviathan-offsec/FenrirLVX)** | fingerprint | What is actually running here, and which advisories apply |
+| **[leviathan-core](https://github.com/leviathan-offsec/leviathan-core)** | decide | Which of the year's CVEs hit *your* assets, with the evidence chain |
+
+```bash
+subfinder -d example.com -silent | surfacediff snap -l subs --source subfinder
+cat subs.txt | hostage -t 50
+fenrir scan -t https://target.example.com
+```
+
+All four are MIT, stateless, and pipe into cron or GitHub Actions.
+[leviathan.ac](https://leviathan.ac) · [@leviathan-offsec](https://github.com/leviathan-offsec)
 
 ---
 
