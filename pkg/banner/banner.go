@@ -3,12 +3,12 @@ package banner
 import "fmt"
 
 const (
-	Cyan  = "\033[36m"
-	White = "\033[37m"
-	Green = "\033[32m"
-	Red   = "\033[31m"
+	Cyan   = "\033[36m"
+	White  = "\033[37m"
+	Green  = "\033[32m"
+	Red    = "\033[31m"
 	Yellow = "\033[33m"
-	Reset = "\033[0m"
+	Reset  = "\033[0m"
 )
 
 func Print() {

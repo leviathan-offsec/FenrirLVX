@@ -1,0 +1,118 @@
+# .github/workflows/release.yml
+# Cross-compile, checksum, SBOM, cosign keyless signing, GitHub Release.
+# Triggers on tag push v*.*.*
+#
+# To cut a release:
+#   git tag v0.1.0
+#   git push origin v0.1.0
+#
+# The release job depends on nothing, so a tag pushed straight to main will
+# ship whatever is broken. Push the tag only after CI is green on main.
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+
+permissions:
+  contents: write    # create the GitHub release and upload assets
+  id-token: write    # cosign keyless signing
+
+jobs:
+  release:
+    name: Build & release binaries
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.27.x'
+          cache: true
+
+      - name: Parse version
+        id: ver
+        run: echo "version=${GITHUB_REF_NAME#v}" >> $GITHUB_OUTPUT
+
+      - name: Test before shipping
+        run: go test ./... -timeout 120s -count=1
+
+      - name: Build all platforms
+        run: |
+          mkdir -p dist
+          VERSION="${{ steps.ver.outputs.version }}"
+          COMMIT="$(git rev-parse --short HEAD)"
+          LDFLAGS="-s -w -X github.com/leviathan-offsec/FenrirLVX/cmd.Version=${VERSION} -X github.com/leviathan-offsec/FenrirLVX/cmd.Commit=${COMMIT}"
+
+          CGO_ENABLED=0 GOOS=linux   GOARCH=amd64 go build -trimpath -ldflags="${LDFLAGS}" -o dist/fenrir-linux-amd64 .
+          CGO_ENABLED=0 GOOS=linux   GOARCH=arm64 go build -trimpath -ldflags="${LDFLAGS}" -o dist/fenrir-linux-arm64 .
+          CGO_ENABLED=0 GOOS=windows GOARCH=amd64 go build -trimpath -ldflags="${LDFLAGS}" -o dist/fenrir-windows-amd64.exe .
+          CGO_ENABLED=0 GOOS=darwin  GOARCH=arm64 go build -trimpath -ldflags="${LDFLAGS}" -o dist/fenrir-darwin-arm64 .
+          CGO_ENABLED=0 GOOS=darwin  GOARCH=amd64 go build -trimpath -ldflags="${LDFLAGS}" -o dist/fenrir-darwin-amd64 .
+
+      - name: Verify the built binary reports the tagged version
+        run: |
+          # Catches an ldflags path typo, which builds fine and reports "dev".
+          ./dist/fenrir-linux-amd64 version
+          ./dist/fenrir-linux-amd64 version | grep -q "${{ steps.ver.outputs.version }}" \
+            || { echo "::error::built binary does not report the tagged version"; exit 1; }
+
+      - name: Generate checksums
+        run: |
+          cd dist
+          sha256sum fenrir-* > checksums.sha256
+          cat checksums.sha256
+
+      - name: Generate SBOM
+        uses: anchore/sbom-action@v0
+        with:
+          artifact-name: fenrir-sbom.spdx.json
+          format: spdx-json
+          output-file: dist/fenrir-sbom.spdx.json
+
+      - name: Install cosign
+        uses: sigstore/cosign-installer@v3
+
+      - name: Sign binaries, keyless
+        run: |
+          cd dist
+          for f in fenrir-linux-amd64 fenrir-linux-arm64 fenrir-windows-amd64.exe fenrir-darwin-arm64 fenrir-darwin-amd64; do
+            cosign sign-blob --yes --output-certificate "${f}.pem" --output-signature "${f}.sig" "${f}"
+          done
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          name: ${{ github.ref_name }}
+          generate_release_notes: true
+          body: |
+            ## Verify
+
+            ```bash
+            curl -sLO https://github.com/leviathan-offsec/FenrirLVX/releases/download/${{ github.ref_name }}/checksums.sha256
+            sha256sum -c checksums.sha256
+
+            # keyless signature, no key to manage
+            cosign verify-blob \
+              --certificate fenrir-linux-amd64.pem \
+              --signature fenrir-linux-amd64.sig \
+              --certificate-identity "https://github.com/leviathan-offsec/FenrirLVX/.github/workflows/release.yml@refs/tags/${{ github.ref_name }}" \
+              --certificate-oidc-issuer https://token.actions.githubusercontent.com \
+              fenrir-linux-amd64
+            ```
+
+            SBOM in `spdx-json` format is attached.
+          files: |
+            dist/fenrir-linux-amd64
+            dist/fenrir-linux-arm64
+            dist/fenrir-windows-amd64.exe
+            dist/fenrir-darwin-arm64
+            dist/fenrir-darwin-amd64
+            dist/checksums.sha256
+            dist/fenrir-sbom.spdx.json
+            dist/*.pem
+            dist/*.sig

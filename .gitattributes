@@ -1,0 +1,21 @@
+# Normalise line endings in the repository, and check them out as LF locally.
+# Without this, a file edited on Windows comes back with CRLF, gofmt flags it,
+# and the diff shows every line as changed, which buries the real edit.
+* text=auto eol=lf
+
+*.go   text eol=lf
+*.md   text eol=lf
+*.yml  text eol=lf
+*.yaml text eol=lf
+*.json text eol=lf
+*.ps1  text eol=lf
+*.sh   text eol=lf
+
+# Keep these binary, do not let text=auto touch them.
+*.png  binary
+*.jpg  binary
+*.ico  binary
+*.exe  binary
+*.zip  binary
+*.gz   binary
+*.db   binary
